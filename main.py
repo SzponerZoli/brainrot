@@ -188,25 +188,26 @@ def create_video(audio_path, subtitle_path):
     ], check=True)
     
     # Add subtitles to the video with centered text and black outline
+
     subprocess.run([
         'ffmpeg', '-i', temp_video,
-        '-vf', f"subtitles={subtitle_path}:force_style='"
-               f"FontName=Noto Color Emoji,"
-               f"FontSize=18,"
-               f"PrimaryColour=&HFFFFFF,"  # White text (FFFFFF)
-               f"OutlineColour=&H000000,"  # Black outline (000000)
-               f"BorderStyle=3,"           # Outline + shadow
-               f"Outline=2,"               # Outline thickness
-               f"Shadow=0,"                # No shadow
-               f"Alignment=2,"             # 2 = centered
-               f"MarginV=70'"             # Vertical margin from bottom
-        ,
+        '-vf', f"subtitles='{subtitle_path}':force_style="
+            f"'FontName=Noto Color Emoji,"
+            f"FontSize=18,"
+            f"PrimaryColour=&HFFFFFF,"
+            f"OutlineColour=&H000000,"
+            f"BorderStyle=3,"
+            f"Outline=2,"
+            f"Shadow=0,"
+            f"Alignment=2,"
+            f"MarginV=70'",
         '-c:v', 'libx264',
         '-b:v', '6000k',
         '-r', '25',
         '-c:a', 'copy',
         output_path
     ], check=True)
+
     
     # Clean up temporary files
     if os.path.exists(temp_video):
