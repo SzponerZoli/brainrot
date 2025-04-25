@@ -17,6 +17,8 @@ load_dotenv()
 # Initialize APIs
 openai.api_key = os.getenv("OPENAI_API_KEY")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+font_path_emoji = "/usr/share/fonts/noto/NotoColorEmoji.ttf"
+font_path_text = "/usr/share/fonts/TTF/ComicRelief.ttf"
 
 app = Flask(__name__, template_folder='webui', static_folder='static')
 
@@ -66,6 +68,7 @@ def rewrite_to_gen_alpha(text):
     - Includes emojis
     - Feels authentic to someone born after 2010
     - Energetic and engaging
+    - be short like a youtube short video (max 180 words, 1 minute)
     
     Original text: {text}
     
@@ -81,7 +84,7 @@ def rewrite_to_gen_alpha(text):
 def shorten_for_one_minute(text):
     """Ensure text can be spoken in about one minute (approx 150-180 words)"""
     words = text.split()
-    if len(words) > 180:
+    if len(words) > 200:
         shortened = ' '.join(words[:175])
         # Try to end at a sensible punctuation
         for punct in ['.', '!', '?', ';']:
@@ -191,16 +194,10 @@ def create_video(audio_path, subtitle_path):
 
     subprocess.run([
         'ffmpeg', '-i', temp_video,
-        '-vf', f"subtitles='{subtitle_path}':force_style="
-            f"'FontName=Noto Color Emoji,"
-            f"FontSize=18,"
-            f"PrimaryColour=&HFFFFFF,"
-            f"OutlineColour=&H000000,"
-            f"BorderStyle=3,"
-            f"Outline=2,"
-            f"Shadow=0,"
-            f"Alignment=2,"
-            f"MarginV=70'",
+        '-vf', f"subtitles={subtitle_path}:fontfile='{font_path_text}':force_style="
+            f"'FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=1,Shadow=1,Alignment=2,MarginV=70'"
+            f",subtitles={subtitle_path}:fontfile='{font_path_emoji}':force_style="
+            f"'FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=1,Shadow=1,Alignment=2,MarginV=70'",
         '-c:v', 'libx264',
         '-b:v', '6000k',
         '-r', '25',
@@ -208,12 +205,6 @@ def create_video(audio_path, subtitle_path):
         output_path
     ], check=True)
 
-    
-    # Clean up temporary files
-    if os.path.exists(temp_video):
-        os.unlink(temp_video)
-    
-    return output_path
 
 @app.route('/download/<filename>')
 def download_file(filename):
