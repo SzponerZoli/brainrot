@@ -1,0 +1,248 @@
+<!-- ui/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gen Alpha Content Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/styles.css') }}">
+</head>
+<body>
+    <!-- Background video -->
+    <div class="video-background">
+        <video autoplay muted loop playsinline>
+            <source src="{{ url_for('static', filename='background.mp4') }}" type="video/mp4">
+        </video>
+    </div>
+    
+    <!-- Add dark mode toggle button -->
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+        <svg class="sun-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+    </button>
+
+    <div class="container">
+        <header>
+            <h1>Gen Alpha Content Generator</h1>
+        </header>
+        
+        <div class="app-container">
+            <!-- Text Generation Form -->
+            <form id="textForm">
+                <div class="form-group">
+                    <label for="inputText">Enter your text:</label>
+                    <textarea id="inputText" name="text" rows="4" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="resolution">Video Resolution:</label>
+                    <select id="resolution" name="resolution" required>
+                        <option value="720p">720p</option>
+                        <option value="900p">900p</option>
+                        <option value="1080p" selected>1080p</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="voice">Voice:</label>
+                    <select id="voice" name="voice" required>
+                        <option value="alloy">Alloy (Balanced)</option>
+                        <option value="echo">Echo (Male)</option>
+                        <option value="fable">Fable (British)</option>
+                        <option value="onyx">Onyx (Deep Male)</option>
+                        <option value="nova">Nova (Female)</option>
+                        <option value="shimmer">Shimmer (Clear Female)</option>
+                    </select>
+                </div>
+
+                <button type="submit" id="generateBtn">Generate Text</button>
+            </form>
+
+            <!-- Generated Text Editor (Initially Hidden) -->
+            <div id="textEditor" class="form-group hidden">
+                <label for="generatedText">Generated Text (Edit if needed):</label>
+                <textarea id="generatedText" rows="4"></textarea>
+                <div class="button-group">
+                    <button id="regenerateBtn" class="secondary-btn">Regenerate</button>
+                    <button id="createVideoBtn" class="primary-btn">Create Video</button>
+                </div>
+            </div>
+
+            <!-- Progress Indicator (Initially Hidden) -->
+            <div id="progressContainer" class="hidden">
+                <div class="progress-bar">
+                    <div id="progressBar"></div>
+                </div>
+                <p id="progressText">Processing...</p>
+            </div>
+
+            <!-- Result Container (Initially Hidden) -->
+            <div id="resultContainer" class="hidden">
+                <video id="resultVideo" controls></video>
+                <a id="downloadBtn" class="download-btn">Download Video</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const textForm = document.getElementById('textForm');
+            const textEditor = document.getElementById('textEditor');
+            const generatedText = document.getElementById('generatedText');
+            const regenerateBtn = document.getElementById('regenerateBtn');
+            const createVideoBtn = document.getElementById('createVideoBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const resultContainer = document.getElementById('resultContainer');
+            const resultVideo = document.getElementById('resultVideo');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            // Text Generation Handler
+            textForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('Generating text...');
+                
+                const formData = new FormData(textForm);
+                try {
+                    const response = await fetch('/generate-text', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Response:', data);
+                    
+                    if (data.success) {
+                        generatedText.value = data.generated_text;
+                        textForm.classList.add('hidden');
+                        textEditor.classList.remove('hidden');
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error generating text: ' + error.message);
+                }
+            });
+
+            // Regenerate Handler
+            regenerateBtn.addEventListener('click', async () => {
+                const formData = new FormData(textForm);
+                try {
+                    const response = await fetch('/generate-text', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        generatedText.value = data.generated_text;
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    alert('Error regenerating text: ' + error.message);
+                }
+            });
+
+            // Video Creation Handler
+            createVideoBtn.addEventListener('click', async () => {
+                textEditor.classList.add('hidden');
+                progressContainer.classList.remove('hidden');
+                
+                // Start progress monitoring
+                const eventSource = new EventSource('/progress');
+                eventSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    progressBar.style.width = `${data.percentage}%`;
+                    progressText.textContent = data.message;
+                };
+
+                try {
+                    const formData = new FormData();
+                    formData.append('text', generatedText.value);
+                    formData.append('voice', 'alloy'); // default voice
+
+                    const response = await fetch('/create-video', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        eventSource.close();
+                        progressContainer.classList.add('hidden');
+                        resultContainer.classList.remove('hidden');
+                        resultVideo.src = data.video_url;
+                        downloadBtn.href = data.video_url;
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    eventSource.close();
+                    alert('Error creating video: ' + error.message);
+                }
+            });
+
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('themeToggle');
+        const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+        
+        // Check for saved theme preference or use system preference
+        const currentTheme = localStorage.getItem('theme') || 
+            (prefersDarkScheme.matches ? 'dark' : 'light');
+        
+        // Apply initial theme
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        
+        // Update button icons
+        updateThemeToggleButton(currentTheme);
+        
+        // Theme toggle handler
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeToggleButton(newTheme);
+        });
+        
+        function updateThemeToggleButton(theme) {
+            const sunIcon = themeToggle.querySelector('.sun-icon');
+            const moonIcon = themeToggle.querySelector('.moon-icon');
+            
+            if (theme === 'dark') {
+                sunIcon.style.display = 'none';
+                moonIcon.style.display = 'block';
+            } else {
+                sunIcon.style.display = 'block';
+                moonIcon.style.display = 'none';
+            }
+        }
+        
+        // Listen for system theme changes
+        prefersDarkScheme.addEventListener('change', (e) => {
+            const newTheme = e.matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeToggleButton(newTheme);
+        });
+    });
+    </script>
+
+</body>
+</html>
