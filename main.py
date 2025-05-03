@@ -70,13 +70,12 @@ def create_video_route():
 @app.route('/progress')
 def progress():
     def generate():
-        while True:
-            # Return progress data as SSE
-            data = {'message': g.get('progress_message', ''), 
-                   'percentage': g.get('progress_percentage', 0)}
-            yield f"data: {json.dumps(data)}\n\n"
-            time.sleep(0.5)
-    
+        with app.app_context():
+            while True:
+                data = {'message': g.get('progress_message', ''), 
+                        'percentage': g.get('progress_percentage', 0)}
+                yield f"data: {json.dumps(data)}\n\n"
+                time.sleep(0.5)
     return Response(generate(), mimetype='text/event-stream')
 
 def update_progress(message, percentage):
@@ -94,6 +93,10 @@ def rewrite_to_gen_alpha(text):
         - Feels authentic to someone born after 2010
         - Energetic and engaging
         - be short like a youtube short video (max 180 words, 1 minute)
+        - no emojis
+        - in the language as the original text.
+        - Use a friendly and relatable tone
+        - Use simple and clear language
 
         Original text: {text}
         
@@ -236,36 +239,41 @@ def create_video(audio_path, subtitle_path, resolution='1080p'):
     temp_video = os.path.join(temp_dir, f"temp_{uuid.uuid4()}.mp4")
     
     # First pass: combine background and audio
+    # Első passz: háttér + hang kombinálása VAAPI-vel
     subprocess.run([
-        'ffmpeg', '-i', background_video, 
+        'ffmpeg', '-vaapi_device', '/dev/dri/card1',
+        '-i', background_video,
         '-i', audio_path,
         '-t', str(audio_duration),
-        '-filter_complex', 
-        f'[0:v]scale=-1:{height},crop={width}:{height},setsar=1:1[v];[v][1:a]concat=n=1:v=1:a=1[outv][outa]',
-        '-map', '[outv]', 
+        '-filter_complex',
+        f'[0:v]scale=-1:{height},crop={width}:{height},setsar=1:1,format=nv12,hwupload[v];[v][1:a]concat=n=1:v=1:a=1[outv][outa]',
+        '-map', '[outv]',
         '-map', '[outa]',
-        '-c:v', 'libx264', 
+        '-c:v', 'h264_vaapi',
+        '-b:v', bitrates.get(resolution, '6000k'),
         '-c:a', 'aac',
         temp_video
     ], check=True)
 
-    # Calculate font size based on resolution
-    font_size = int(height * 0.014)  # Scaled font size
-    margin_v = int(height * 0.037)   # Scaled margin
+    # Felirat méretezése
+    font_size = int(height * 0.01)
+    margin_v = int(height * 0.04)
 
-    # Second pass: add subtitles
+    # Második passz: felirat hozzáadása VAAPI-vel
     subprocess.run([
-        'ffmpeg', '-i', temp_video,
-        '-vf', f"subtitles='{subtitle_path}':force_style="
-            f"'FontName=Noto Color Emoji,"
-            f"FontSize={font_size},"
-            f"PrimaryColour=&HFFFFFF,"
-            f"OutlineColour=&H000000,"
-            f"Outline=2,"
-            f"Shadow=0,"
-            f"Alignment=2,"
-            f"MarginV={margin_v}'",
-        '-c:v', 'libx264',
+        'ffmpeg', '-vaapi_device', '/dev/dri/card1',
+        '-i', temp_video,
+        '-vf', f"subtitles='{subtitle_path.replace(':', '\\:')}'"
+               f":force_style="
+               f"FontSize={font_size},"
+               f"PrimaryColour=&HFFFFFF,"
+               f"OutlineColour=&H7B0FFF,"
+               f"Outline=2,"
+               f"Shadow=0,"
+               f"Alignment=2,"
+               f"MarginV={margin_v}',"
+               "format=nv12,hwupload",
+        '-c:v', 'h264_vaapi',
         '-b:v', bitrates.get(resolution, '6000k'),
         '-r', '25',
         '-c:a', 'copy',
