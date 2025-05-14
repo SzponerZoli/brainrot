@@ -30,7 +30,7 @@
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
         <svg class="moon-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 A7 7 0 0 0 21 12.79z"></path>
         </svg>
     </button>
 
@@ -47,7 +47,19 @@
                     <textarea id="inputText" name="text" rows="4" required></textarea>
                 </div>
 
-                <div class="form-group">
+                <button type="submit" id="generateBtn">Generate Text</button>
+            </form>
+
+            <!-- Generated Text Editor (Initially Hidden) -->
+            <div id="textEditor" class="form-group hidden">
+                <label for="generatedText">Generated Text (Edit if needed):</label>
+                <textarea id="generatedText" rows="4"></textarea>
+                <div class="button-group">
+                    <button id="regenerateBtn" class="secondary-btn">Regenerate</button>
+
+                </div>
+
+                                <div class="form-group">
                     <label for="resolution">Video Resolution:</label>
                     <select id="resolution" name="resolution" required>
                         <option value="720p">720p</option>
@@ -55,7 +67,6 @@
                         <option value="1080p" selected>1080p</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="voice">Voice:</label>
                     <select id="voice" name="voice" required>
@@ -67,26 +78,20 @@
                         <option value="shimmer">Shimmer (Clear Female)</option>
                     </select>
                 </div>
-
-                <button type="submit" id="generateBtn">Generate Text</button>
-            </form>
-
-            <!-- Generated Text Editor (Initially Hidden) -->
-            <div id="textEditor" class="form-group hidden">
-                <label for="generatedText">Generated Text (Edit if needed):</label>
-                <textarea id="generatedText" rows="4"></textarea>
-                <div class="button-group">
-                    <button id="regenerateBtn" class="secondary-btn">Regenerate</button>
-                    <button id="createVideoBtn" class="primary-btn">Create Video</button>
-                </div>
+                <button id="createVideoBtn" class="primary-btn">Create Video</button>
             </div>
 
             <!-- Progress Indicator (Initially Hidden) -->
             <div id="progressContainer" class="hidden">
                 <div class="progress-bar">
-                    <div id="progressBar"></div>
+                    <div id="progressFill" class="progress-fill"></div>
                 </div>
                 <p id="progressText">Processing...</p>
+                <button id="retryBtn" class="secondary-btn hidden">Retry</button>
+                <button id="toggleLogBtn" class="secondary-btn">View Logs</button>
+                <div id="logContainer" class="hidden">
+                    <textarea id="logText" rows="6" readonly></textarea>
+                </div>
             </div>
 
             <!-- Result Container (Initially Hidden) -->
@@ -110,6 +115,11 @@
             const resultContainer = document.getElementById('resultContainer');
             const resultVideo = document.getElementById('resultVideo');
             const downloadBtn = document.getElementById('downloadBtn');
+            const progressFill = document.getElementById('progressFill');
+            const toggleLogBtn = document.getElementById('toggleLogBtn');
+            const logContainer = document.getElementById('logContainer');
+            const logText = document.getElementById('logText');
+            const retryBtn = document.getElementById('retryBtn');
 
             // Text Generation Handler
             textForm.addEventListener('submit', async (e) => {
@@ -196,6 +206,68 @@
                     alert('Error creating video: ' + error.message);
                 }
             });
+
+            // Retry button handler
+            retryBtn.addEventListener('click', async () => {
+                retryBtn.classList.add('hidden');
+                progressText.textContent = "Retrying...";
+                progressFill.style.width = "0%";
+                logText.value += "Retrying...\n";
+
+                // Retry the video creation process
+                try {
+                    const formData = new FormData();
+                    formData.append('text', generatedText.value);
+                    formData.append('voice', selectedVoice); // Ensure `selectedVoice` is defined
+                    formData.append('resolution', selectedResolution); // Ensure `selectedResolution` is defined
+
+                    const response = await fetch('/create-video', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        progressContainer.classList.add('hidden');
+                        resultContainer.classList.remove('hidden');
+                        resultVideo.src = data.video_url;
+                        downloadBtn.href = data.video_url;
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    progressText.textContent = "Error occurred. Please retry.";
+                    retryBtn.classList.remove('hidden');
+                    logText.value += `Error: ${error.message}\n`;
+                }
+            });
+
+            // Toggle log visibility
+            toggleLogBtn.addEventListener('click', () => {
+                logContainer.classList.toggle('hidden');
+            });
+
+            // Monitor progress and update the progress bar
+            const eventSource = new EventSource('/progress');
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                progressFill.style.width = `${data.percentage}%`;
+                progressText.textContent = data.message;
+
+                // Append logs
+                logText.value += `${data.message}\n`;
+                logText.scrollTop = logText.scrollHeight;
+
+                // Show retry button if an error occurs
+                if (data.message.includes("Error")) {
+                    retryBtn.classList.remove('hidden');
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.error("Error connecting to /progress endpoint.");
+                progressText.textContent = "Connection lost. Please retry.";
+            };
 
         // Theme toggle functionality
         const themeToggle = document.getElementById('themeToggle');

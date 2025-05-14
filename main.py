@@ -20,20 +20,23 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 app = Flask(__name__,
-    template_folder='templates',  # Set template directory
-    static_folder='static'       # Set static files directory
-)
+            template_folder='templates',  # Set template directory
+            static_folder='static'  # Set static files directory
+            )
+
+progress_data = {'message': 'Initializing...', 'percentage': 0}
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/generate-text', methods=['POST'])
 def generate_text():
     try:
         original_text = request.form.get('text')
         gen_alpha_text = rewrite_to_gen_alpha(original_text)
-        
+
         return jsonify({
             'success': True,
             'original_text': original_text,
@@ -42,46 +45,54 @@ def generate_text():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
 @app.route('/create-video', methods=['POST'])
 def create_video_route():
     try:
         text = request.form.get('text')
         voice = request.form.get('voice')
         resolution = request.form.get('resolution', '1080p')
-        
+
         update_progress("Generating audio...", 25)
         audio_path = generate_audio(text, voice)
-        
+
         update_progress("Creating subtitles...", 50)
         subtitle_path = create_subtitles(text, audio_path)
-        
+
         update_progress("Creating video...", 75)
         video_path = create_video(audio_path, subtitle_path, resolution)
-        
+
         update_progress("Done!", 100)
-        
+
         return jsonify({
             'success': True,
             'video_url': f'/download/{os.path.basename(video_path)}'
         })
     except Exception as e:
+        update_progress("Error occurred. Please retry.", 0)
         return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/progress')
 def progress():
     def generate():
-        with app.app_context():
-            while True:
-                data = {'message': g.get('progress_message', ''), 
-                        'percentage': g.get('progress_percentage', 0)}
-                yield f"data: {json.dumps(data)}\n\n"
-                time.sleep(0.5)
+        while True:
+            data = {
+                'message': progress_data.get('message', 'Initializing...'),
+                'percentage': progress_data.get('percentage', 0)
+            }
+            yield f"data: {json.dumps(data)}\n\n"
+            time.sleep(0.5)  # Update every 0.5 seconds
+
     return Response(generate(), mimetype='text/event-stream')
+
 
 def update_progress(message, percentage):
     """Update progress in global context"""
-    g.progress_message = message
-    g.progress_percentage = percentage
+    with app.app_context():
+        g.progress_message = message
+        g.progress_percentage = percentage
+
 
 def rewrite_to_gen_alpha(text):
     """Use Gemini to rewrite text in Gen Alpha style."""
@@ -99,45 +110,45 @@ def rewrite_to_gen_alpha(text):
         - Use simple and clear language
 
         Original text: {text}
-        
-        Gen Alpha version:
         """
-        
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')  # Changed from gemini-2.0-flash-lite
+
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
-        
+
         if response.text:
             return response.text.strip()
         else:
             raise Exception("No response generated")
-            
+
     except Exception as e:
         print(f"Error in rewrite_to_gen_alpha: {str(e)}")
         raise Exception(f"Failed to generate text: {str(e)}")
+
 
 def generate_audio(text, voice):
     """Generate audio from text using OpenAI's TTS API."""
     temp_dir = "temp_files"
     os.makedirs(temp_dir, exist_ok=True)
-    
+
     audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.mp3")
-    
+
     response = openai.audio.speech.create(
         model="tts-1",
         voice=voice,
         input=text
     )
-    
+
     with open(audio_path, "wb") as audio_file:
         audio_file.write(response.content)
-    
+
     return audio_path
+
 
 def create_subtitles(text, audio_path):
     """Create a synchronized SRT subtitle file using OpenAI's STT for timing."""
     temp_dir = "temp_files"
     subtitle_path = os.path.join(temp_dir, f"{uuid.uuid4()}.srt")
-    
+
     try:
         # Get audio duration
         audio_info = subprocess.check_output(
@@ -158,20 +169,19 @@ def create_subtitles(text, audio_path):
         chunks = []
         current_chunk = []
         current_start = None
-        
+
         for segment in transcript.segments:
             if not current_start:
                 current_start = segment.start
-                
+
             current_chunk.append(segment.text)
-            
+
             # Split chunks at natural breaks or when they get too long
-            if (len(' '.join(current_chunk)) > 35 or 
-                segment.end - current_start > 2.5 or  # max 2.5 seconds per chunk
-                '.' in segment.text or 
-                '!' in segment.text or 
-                '?' in segment.text):
-                
+            if (len(' '.join(current_chunk)) > 35 or
+                    segment.end - current_start > 2.5 or  # max 2.5 seconds per chunk
+                    '.' in segment.text or
+                    '!' in segment.text or
+                    '?' in segment.text):
                 chunks.append({
                     'text': ' '.join(current_chunk).strip(),
                     'start': current_start,
@@ -185,16 +195,17 @@ def create_subtitles(text, audio_path):
             for i, chunk in enumerate(chunks, 1):
                 start_formatted = format_timestamp(chunk['start'])
                 end_formatted = format_timestamp(chunk['end'])
-                
+
                 f.write(f"{i}\n")
                 f.write(f"{start_formatted} --> {end_formatted}\n")
                 f.write(f"{chunk['text']}\n\n")
-                
+
         return subtitle_path
 
     except Exception as e:
         print(f"Error in create_subtitles: {str(e)}")
         raise Exception(f"Failed to create subtitles: {str(e)}")
+
 
 def format_timestamp(seconds):
     """Format seconds to SRT timestamp (HH:MM:SS,mmm)"""
@@ -203,100 +214,84 @@ def format_timestamp(seconds):
     seconds = seconds % 60
     milliseconds = int((seconds % 1) * 1000)
     seconds = int(seconds)
-    
+
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
 
 def create_video(audio_path, subtitle_path, resolution='1080p'):
     """Combine audio with background video and subtitles using FFmpeg."""
     temp_dir = "temp_files"
     os.makedirs(temp_dir, exist_ok=True)
-    
+
     background_video = "static/background_video.mp4"
     output_path = os.path.join(temp_dir, f"{uuid.uuid4()}.mp4")
-    
+
     # Resolution mapping (9:16 aspect ratio)
     resolutions = {
         '720p': (720, 1280),
         '900p': (900, 1600),
         '1080p': (1080, 1920)
     }
-    
+
     width, height = resolutions.get(resolution, resolutions['1080p'])
     bitrates = {
         '720p': '4000k',
         '900p': '5000k',
         '1080p': '6000k'
     }
-    
+
     # Get audio duration
     audio_info = subprocess.check_output(
-        ['ffprobe', '-i', audio_path, '-show_entries', 'format=duration', 
+        ['ffprobe', '-i', audio_path, '-show_entries', 'format=duration',
          '-v', 'quiet', '-of', 'csv=%s' % ("p=0")],
         universal_newlines=True
     ).strip()
-    
+
     audio_duration = float(audio_info)
     temp_video = os.path.join(temp_dir, f"temp_{uuid.uuid4()}.mp4")
-    
-    # First pass: combine background and audio
-    # Első passz: háttér + hang kombinálása VAAPI-vel
+
+    # Video encoding using VAAPI
     subprocess.run([
-        'ffmpeg', '-vaapi_device', '/dev/dri/card1',
-        '-i', background_video,
-        '-i', audio_path,
-        '-t', str(audio_duration),
+        'ffmpeg',
+        '-i', background_video,  # Bemeneti videó
+        '-i', audio_path,        # Bemeneti audio
+        '-t', str(audio_duration), # Kivágás az audio hossza alapján
         '-filter_complex',
-        f'[0:v]scale=-1:{height},crop={width}:{height},setsar=1:1,format=nv12,hwupload[v];[v][1:a]concat=n=1:v=1:a=1[outv][outa]',
-        '-map', '[outv]',
-        '-map', '[outa]',
-        '-c:v', 'h264_vaapi',
-        '-b:v', bitrates.get(resolution, '6000k'),
-        '-c:a', 'aac',
+        f'[0:v]scale=-1:{height},crop={width}:{height},setsar=1:1[v]',  # Videó szűrők
+        '-map', '[v]',
+        '-map', '1:a',
+        '-c:v', 'libx264',  # H264 kódolás CPU-val
+        '-b:v', '6000k',    # Bitrate
+        '-c:a', 'aac',      # Audio kodek
         temp_video
     ], check=True)
 
-    # Felirat méretezése
-    font_size = int(height * 0.01)
-    margin_v = int(height * 0.04)
+# Feliratok hozzáadása
+    font_size = int(height * 0.005)
+    margin_v = int(height * 0.03)
 
-    # Második passz: felirat hozzáadása VAAPI-vel
     subprocess.run([
-        'ffmpeg', '-vaapi_device', '/dev/dri/card1',
+        'ffmpeg',
         '-i', temp_video,
-        '-vf', f"subtitles='{subtitle_path.replace(':', '\\:')}'"
-               f":force_style="
-               f"FontSize={font_size},"
-               f"PrimaryColour=&HFFFFFF,"
-               f"OutlineColour=&H7B0FFF,"
-               f"Outline=2,"
-               f"Shadow=0,"
-               f"Alignment=2,"
-               f"MarginV={margin_v}',"
-               "format=nv12,hwupload",
-        '-c:v', 'h264_vaapi',
-        '-b:v', bitrates.get(resolution, '6000k'),
+        '-vf',
+        f"subtitles='{subtitle_path}':force_style='FontSize={font_size},PrimaryColour=&HFFFFFF&,OutlineColour=&AF2FFF&,Outline=2,Shadow=0,Alignment=2,MarginV={margin_v}'",  # Feliratok
+        '-c:v', 'libx264',  # H264 kódolás
+        '-b:v', '6000k',
         '-r', '25',
-        '-c:a', 'copy',
+        '-c:a', 'copy',  # Audio változtatása nélkül
         output_path
     ], check=True)
 
-    # Clean up temp file
+        # Clean up temp file
     os.remove(temp_video)
-    
+
     return output_path
-    # Create video with FFmpeg - specify 9:16 aspect ratio
-# First create temporary video with subtitles
-
-
-# Crop/pad the background video to 9:16 aspect ratio
-
-    
-
 
 @app.route('/download/<filename>')
 def download_file(filename):
     """Download generated video."""
     return send_from_directory('temp_files', filename, as_attachment=True)
+
 
 @app.route('/cleanup', methods=['POST'])
 def cleanup():
@@ -311,13 +306,14 @@ def cleanup():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs('temp_files', exist_ok=True)
     os.makedirs('static', exist_ok=True)
-    
+
     # Check if background video exists, if not create a placeholder
     if not os.path.exists('static/background_video.mp4'):
         print("Warning: background_video.mp4 not found in static folder. Please add one.")
-        
+
     app.run(debug=True)

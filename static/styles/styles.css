@@ -145,6 +145,10 @@ button {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
 }
 
 .secondary-btn:hover {
@@ -161,6 +165,7 @@ button {
 }
 
 .progress-fill {
+  width: 0;
   height: 100%;
   background: var(--accent-primary);
   transition: width 0.3s ease;
@@ -176,6 +181,21 @@ button {
 
 .hidden {
   display: none;
+}
+
+#logContainer {
+  margin-top: 1rem;
+}
+
+#logText {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  resize: none;
 }
 
 @media (max-width: 640px) {
