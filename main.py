@@ -316,4 +316,4 @@ if __name__ == '__main__':
     if not os.path.exists('static/background_video.mp4'):
         print("Warning: background_video.mp4 not found in static folder. Please add one.")
 
-    app.run(debug=True)
+    app.run(debug=False)
