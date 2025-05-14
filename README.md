@@ -55,7 +55,7 @@ GEMINI_API_KEY=your_gemini_api_key
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/brainrot.git
+git clone https://github.com/SzponerZoli/brainrot.git
 cd brainrot
 ```
 
