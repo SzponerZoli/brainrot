@@ -160,3 +160,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Google for Gemini AI
 - FFmpeg for video processing
 - Flask for web framework
+
+<!-- GitAds-Verify: U25PRK9E713T26NWB1IW1ZAM4Q99TGC2 -->
