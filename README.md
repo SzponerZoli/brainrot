@@ -1,3 +1,7 @@
+## GitAds Sponsored
+[![Sponsored by GitAds](https://gitads.dev/v1/ad-serve?source=szponerzoli/brainrot@github)](https://gitads.dev/v1/ad-track?source=szponerzoli/brainrot@github)
+
+
 # Gen Alpha Content Generator
 
 A modern web application that transforms regular text into Gen Alpha-style content with synchronized video, audio, and subtitles.
